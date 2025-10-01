@@ -20,8 +20,14 @@ exports.generateAlert = async (req, res) => {
     });
 
     await alert.save();
+
+    // 🔹 Emit real-time alert via Socket.IO
+    const io = req.app.get("io"); // get the io instance from server.js
+    io.emit("newAlert", alert); // emit the newly created alert
+
     res.json(alert);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: "Server error" });
   }
 };

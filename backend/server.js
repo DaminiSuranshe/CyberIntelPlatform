@@ -26,7 +26,7 @@ app.set("io", io);
 
 // Update alertController to emit real-time event
 // After alert.save():
-io.emit("newAlert", alert);
+//io.emit("newAlert", alert);
 
 
 // Routes
