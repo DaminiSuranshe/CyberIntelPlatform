@@ -1,19 +1,11 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const iocSchema = new mongoose.Schema({
-  type: { 
-    type: String, 
-    enum: ["ip", "domain", "url", "hash"], 
-    required: true 
-  },
-  value: { type: String, required: true, unique: true },
-  source: { type: String }, // e.g., VirusTotal, OTX
-  threatLevel: { 
-    type: String, 
-    enum: ["low", "medium", "high", "critical"], 
-    default: "low" 
-  },
+const IoCSchema = new mongoose.Schema({
+  value: { type: String, required: true },
+  type: { type: String, enum: ['ip','domain','url','hash'], required: true },
+  description: { type: String },
+  enrichedData: { type: Object }, // stores VirusTotal JSON data
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("IoC", iocSchema);
+module.exports = mongoose.model('IoC', IoCSchema);

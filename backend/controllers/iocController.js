@@ -1,4 +1,5 @@
 const IoC = require("../models/IoC");
+const { enrichIoC } = require("../services/virustotalService"); // <-- Import enrichment
 
 // Create new IoC
 exports.createIoC = async (req, res) => {
@@ -9,11 +10,21 @@ exports.createIoC = async (req, res) => {
     const existing = await IoC.findOne({ value });
     if (existing) return res.status(400).json({ msg: "IoC already exists" });
 
-    const newIoC = new IoC({ type, value, source, threatLevel });
+    // 🔹 Enrich IoC with VirusTotal before saving
+    let vtData = {};
+    try {
+      vtData = await enrichIoC(value, type);
+    } catch (err) {
+      console.error("VirusTotal enrichment failed:", err.message);
+      // Still allow saving even if enrichment fails
+    }
+
+    const newIoC = new IoC({ type, value, source, threatLevel, enrichedData: vtData });
     await newIoC.save();
 
     res.json(newIoC);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: "Server error" });
   }
 };
@@ -44,9 +55,17 @@ exports.updateIoC = async (req, res) => {
   try {
     const { type, value, source, threatLevel } = req.body;
 
+    // 🔹 Re-enrich IoC with VirusTotal on update
+    let vtData = {};
+    try {
+      vtData = await enrichIoC(value, type);
+    } catch (err) {
+      console.error("VirusTotal enrichment failed:", err.message);
+    }
+
     const updated = await IoC.findByIdAndUpdate(
       req.params.id,
-      { type, value, source, threatLevel },
+      { type, value, source, threatLevel, enrichedData: vtData },
       { new: true }
     );
 
