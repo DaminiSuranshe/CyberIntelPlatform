@@ -37,6 +37,8 @@ app.use("/api/logs", require("./routes/logs"));
 app.use("/api/actors", require("./routes/actors"));
 app.use("/api/risks", require("./routes/risks"));
 app.use("/api/alerts", require("./routes/alerts"));
+app.use("/api/dashboard", require("./routes/dashboard"));
+app.use("/api/reports", require("./routes/reports"));
 
 
 const PORT = process.env.PORT || 5000;
