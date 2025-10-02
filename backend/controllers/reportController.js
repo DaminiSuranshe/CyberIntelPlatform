@@ -1,57 +1,66 @@
-const { Parser } = require("json2csv");
-const PDFDocument = require("pdfkit");
-const Risk = require("../models/Risk");
-const Log = require("../models/Log");
-const IoC = require("../models/IoC");
-const Alert = require("../models/Alert");
+const Log = require('../models/Log');
+const IoC = require('../models/IoC');
+const Risk = require('../models/Risk');
+const Alert = require('../models/Alert');
+const { Parser } = require('json2csv');
+const PDFDocument = require('pdfkit');
 
-/**
- * GET /api/reports/export?format=csv&type=risks
- * format: csv | pdf
- * type: risks | alerts | iocs | logs
- */
-exports.exportReport = async (req, res) => {
+exports.generateSummary = async (req, res) => {
   try {
-    const fmt = (req.query.format || "csv").toLowerCase();
-    const type = (req.query.type || "risks").toLowerCase();
+    const logsCount = await Log.countDocuments();
+    const iocsCount = await IoC.countDocuments();
+    const risksCount = await Risk.countDocuments();
+    const alertsCount = await Alert.countDocuments();
 
-    let data = [];
-    if (type === "risks") {
-      data = await Risk.find().populate("logId", "fileName").lean();
-    } else if (type === "alerts") {
-      data = await Alert.find().populate("logId", "fileName").populate("riskId").lean();
-    } else if (type === "iocs") {
-      data = await IoC.find().lean();
-    } else if (type === "logs") {
-      data = await Log.find().lean();
-    } else return res.status(400).json({ msg: "Invalid type" });
+    const recentAlerts = await Alert.find().sort({ createdAt: -1 }).limit(5);
 
-    if (fmt === "csv") {
-      const fields = Object.keys(data[0] || {});
-      const parser = new Parser({ fields });
-      const csv = parser.parse(data);
-      res.header("Content-Type", "text/csv");
-      res.attachment(`${type}-${Date.now()}.csv`);
-      return res.send(csv);
-    } else if (fmt === "pdf") {
-      // Simple PDF listing
-      const doc = new PDFDocument({ margin: 30, size: "A4" });
-      res.setHeader("Content-disposition", `attachment; filename=${type}-${Date.now()}.pdf`);
-      res.setHeader("Content-type", "application/pdf");
-      doc.pipe(res);
-      doc.fontSize(18).text(`${type.toUpperCase()} Report`, { align: "center" });
-      doc.moveDown();
-      data.forEach((row, idx) => {
-        doc.fontSize(10).text(`${idx + 1}. ${JSON.stringify(row)}`);
-        doc.moveDown(0.4);
-      });
-      doc.end();
-    } else {
-      return res.status(400).json({ msg: "Invalid format" });
-    }
-
+    res.json({ logs: logsCount, iocs: iocsCount, risks: risksCount, alerts: alertsCount, recentAlerts });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ msg: 'Server error generating report' });
+  }
+};
+
+exports.exportCSV = async (req, res) => {
+  try {
+    const risks = await Risk.find().populate('logId', 'fileName').lean();
+    const rows = risks.map(r => ({ fileName: r.logId?.fileName || '', score: r.calculatedScore, riskLevel: r.riskLevel }));
+    const fields = ['fileName', 'score', 'riskLevel'];
+    const parser = new Parser({ fields });
+    const csv = parser.parse(rows);
+    res.header('Content-Type', 'text/csv');
+    res.attachment('risk_report.csv');
+    return res.send(csv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Error exporting CSV' });
+  }
+};
+
+exports.exportPDF = async (req, res) => {
+  try {
+    const summary = {
+      logs: await Log.countDocuments(),
+      iocs: await IoC.countDocuments(),
+      risks: await Risk.countDocuments(),
+      alerts: await Alert.countDocuments()
+    };
+
+    const doc = new PDFDocument();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=summary_report.pdf');
+
+    doc.fontSize(18).text('Cyber Intelligence Platform - Summary Report', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Logs: ${summary.logs}`);
+    doc.text(`IOCs: ${summary.iocs}`);
+    doc.text(`Risks: ${summary.risks}`);
+    doc.text(`Alerts: ${summary.alerts}`);
+    doc.end();
+
+    doc.pipe(res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Error exporting PDF' });
   }
 };
